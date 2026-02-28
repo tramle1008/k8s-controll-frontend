@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Test WebSocket STOMP - Pod Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+        body {
+            font-family: monospace;
+            margin: 20px;
+        }
+
+        #log {
+            background: #f4f4f4;
+            padding: 15px;
+            height: 500px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            white-space: pre-wrap;
+        }
+
+        button {
+            margin: 5px;
+            padding: 8px 12px;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>Test WebSocket SockJS + STOMP (Pod realtime)</h2>
+    <button onclick="connect()">Connect</button>
+    <button onclick="disconnect()">Disconnect</button>
+    <button onclick="subscribeAllPods()">Subscribe /topic/pods-all</button>
+    <button onclick="subscribeSummary()">Subscribe /topic/pods-summary</button>
+
+    <h3>Log</h3>
+    <pre id="log"></pre>
+
+    <script>
+        const logElement = document.getElementById('log');
+        let stompClient = null;
+        let socket = null;
+
+        function addLog(msg) {
+            const time = new Date().toLocaleTimeString('vi-VN');
+            logElement.textContent += `[${time}] ${msg}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        function connect() {
+            if (stompClient && stompClient.connected) {
+                addLog('Already connected!');
+                return;
+            }
+
+            addLog('Đang kết nối đến ws://localhost:8080/ws ...');
+
+            socket = new SockJS('http://localhost:8080/ws');
+            stompClient = Stomp.over(socket);
+
+            stompClient.connect(
+                {},
+                function (frame) {
+                    addLog('KẾT NỐI THÀNH CÔNG: ' + frame);
+                    addLog('Session ID: ' + frame.headers['session']);
+                },
+                function (error) {
+                    addLog('LỖI KẾT NỐI: ' + error);
+                    setTimeout(reconnect, 3000);
+                }
+            );
+        }
+
+        function disconnect() {
+            if (stompClient !== null) {
+                stompClient.disconnect(function () {
+                    addLog('ĐÃ NGẮT KẾT NỐI');
+                });
+                stompClient = null;
+            }
+        }
+
+        function reconnect() {
+            addLog('Thử kết nối lại sau 3 giây...');
+            disconnect();
+            setTimeout(connect, 3000);
+        }
+
+        // Subscribe topic pods-summary (tổng hợp)
+        function subscribeSummary() {
+            if (!stompClient || !stompClient.connected) {
+                addLog('Chưa kết nối! Nhấn Connect trước.');
+                return;
+            }
+            stompClient.subscribe('/topic/pods-summary', function (message) {
+                try {
+                    const data = JSON.parse(message.body);
+                    addLog('POD SUMMARY UPDATE:');
+                    addLog(`Total: ${data.totalPods} | Running: ${data.runningPods} | Alerted: ${data.alertedPods}`);
+                    addLog(`Pending: ${data.pendingPods} | Failed: ${data.failedPods}`);
+                    addLog('Last updated: ' + data.lastUpdated);
+                    addLog('Full: ' + message.body.substring(0, 200) + '...');
+                    addLog('---');
+                } catch (e) {
+                    addLog('Lỗi parse summary: ' + e);
+                }
+            });
+            addLog('Đã subscribe /topic/pods-summary');
+        }
+
+        // Subscribe all pods (PodDetailDto)
+        function subscribeAllPods() {
+            if (!stompClient || !stompClient.connected) {
+                addLog('Chưa kết nối!');
+                return;
+            }
+            stompClient.subscribe('/topic/pods-all', function (message) {
+                try {
+                    const pod = JSON.parse(message.body);
+                    addLog('POD DETAIL UPDATE:');
+                    addLog(`[${pod.namespace}/${pod.name}] ${pod.status} | Ready: ${pod.ready} | Restarts: ${pod.restarts}`);
+                    addLog(`Age: ${pod.age} | Node: ${pod.nodeName} | IP: ${pod.podIp || 'N/A'}`);
+                    addLog('Labels: ' + JSON.stringify(pod.labels || {}));
+                    addLog('Full JSON: ' + message.body.substring(0, 300) + '...');
+                    addLog('---');
+                } catch (e) {
+                    addLog('Lỗi parse PodDetailDto: ' + e);
+                }
+            });
+            addLog('Đã subscribe /topic/pods-all');
+        }
+
+        // Auto reconnect khi mất kết nối
+        setInterval(() => {
+            if (!stompClient || !stompClient.connected) {
+                addLog('Mất kết nối → tự reconnect...');
+                reconnect();
+            }
+        }, 15000);
+
+        // Kết nối ngay khi load trang
+        window.onload = connect;
+    </script>
+</body>
+
+</html>
