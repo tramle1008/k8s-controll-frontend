@@ -3,39 +3,67 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Test WebSocket STOMP - Pod Dashboard</title>
+    <title>Test WebSocket STOMP - Pods Realtime</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
     <style>
         body {
             font-family: monospace;
             margin: 20px;
+            background: #f8f9fa;
         }
 
-        #log {
-            background: #f4f4f4;
-            padding: 15px;
-            height: 500px;
-            overflow-y: auto;
-            border: 1px solid #ccc;
-            white-space: pre-wrap;
+        h2 {
+            color: #2c3e50;
         }
 
         button {
-            margin: 5px;
-            padding: 8px 12px;
+            padding: 10px 16px;
+            margin: 6px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #2980b9;
+        }
+
+        #log {
+            background: #ecf0f1;
+            padding: 15px;
+            height: 500px;
+            overflow-y: auto;
+            border: 1px solid #bdc3c7;
+            white-space: pre-wrap;
+            font-size: 14px;
+        }
+
+        .error {
+            color: #c0392b;
+            font-weight: bold;
+        }
+
+        .info {
+            color: #27ae60;
         }
     </style>
 </head>
 
 <body>
-    <h2>Test WebSocket SockJS + STOMP (Pod realtime)</h2>
-    <button onclick="connect()">Connect</button>
-    <button onclick="disconnect()">Disconnect</button>
-    <button onclick="subscribeAllPods()">Subscribe /topic/pods-all</button>
-    <button onclick="subscribeSummary()">Subscribe /topic/pods-summary</button>
+    <h2>Test WebSocket STOMP - Theo dõi Pods Realtime</h2>
+    <p>Backend push: /topic/pods-all (chi tiết Pod) và /topic/pods-summary (tổng hợp)</p>
 
-    <h3>Log</h3>
+    <button onclick="connect()">Kết nối</button>
+    <button onclick="disconnect()">Ngắt kết nối</button>
+    <button onclick="clearLog()">Xóa log</button>
+    <br><br>
+    <button onclick="subscribePodsAll()">Subscribe /topic/pods-all (chi tiết Pod)</button>
+    <button onclick="subscribePodsSummary()">Subscribe /topic/pods-summary (tổng hợp)</button>
+
+    <h3>Log Realtime (nhấn Connect trước, rồi subscribe)</h3>
     <pre id="log"></pre>
 
     <script>
@@ -43,31 +71,36 @@
         let stompClient = null;
         let socket = null;
 
-        function addLog(msg) {
+        function addLog(msg, type = 'info') {
             const time = new Date().toLocaleTimeString('vi-VN');
-            logElement.textContent += `[${time}] ${msg}\n`;
+            const prefix = type === 'error' ? '[ERROR]' : '[INFO]';
+            const colorClass = type === 'error' ? 'error' : 'info';
+            logElement.innerHTML += `<span class="${colorClass}">[${time}] ${prefix} ${msg}</span><br>`;
             logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        function clearLog() {
+            logElement.innerHTML = '';
         }
 
         function connect() {
             if (stompClient && stompClient.connected) {
-                addLog('Already connected!');
+                addLog('Đã kết nối rồi!');
                 return;
             }
 
-            addLog('Đang kết nối đến ws://localhost:8080/ws ...');
-
+            addLog('Đang kết nối đến http://localhost:8080/ws ...');
             socket = new SockJS('http://localhost:8080/ws');
             stompClient = Stomp.over(socket);
 
             stompClient.connect(
                 {},
                 function (frame) {
-                    addLog('KẾT NỐI THÀNH CÔNG: ' + frame);
-                    addLog('Session ID: ' + frame.headers['session']);
+                    addLog('KẾT NỐI THÀNH CÔNG: ' + frame, 'info');
+                    addLog('Session ID: ' + (frame.headers['session'] || 'N/A'));
                 },
                 function (error) {
-                    addLog('LỖI KẾT NỐI: ' + error);
+                    addLog('LỖI KẾT NỐI: ' + error, 'error');
                     setTimeout(reconnect, 3000);
                 }
             );
@@ -83,56 +116,52 @@
         }
 
         function reconnect() {
-            addLog('Thử kết nối lại sau 3 giây...');
+            addLog('Mất kết nối → thử lại sau 3 giây...');
             disconnect();
             setTimeout(connect, 3000);
         }
 
-        // Subscribe topic pods-summary (tổng hợp)
-        function subscribeSummary() {
+        function subscribePodsAll() {
             if (!stompClient || !stompClient.connected) {
-                addLog('Chưa kết nối! Nhấn Connect trước.');
-                return;
-            }
-            stompClient.subscribe('/topic/pods-summary', function (message) {
-                try {
-                    const data = JSON.parse(message.body);
-                    addLog('POD SUMMARY UPDATE:');
-                    addLog(`Total: ${data.totalPods} | Running: ${data.runningPods} | Alerted: ${data.alertedPods}`);
-                    addLog(`Pending: ${data.pendingPods} | Failed: ${data.failedPods}`);
-                    addLog('Last updated: ' + data.lastUpdated);
-                    addLog('Full: ' + message.body.substring(0, 200) + '...');
-                    addLog('---');
-                } catch (e) {
-                    addLog('Lỗi parse summary: ' + e);
-                }
-            });
-            addLog('Đã subscribe /topic/pods-summary');
-        }
-
-        // Subscribe all pods (PodDetailDto)
-        function subscribeAllPods() {
-            if (!stompClient || !stompClient.connected) {
-                addLog('Chưa kết nối!');
+                addLog('Chưa kết nối! Nhấn "Kết nối" trước.', 'error');
                 return;
             }
             stompClient.subscribe('/topic/pods-all', function (message) {
                 try {
                     const pod = JSON.parse(message.body);
-                    addLog('POD DETAIL UPDATE:');
-                    addLog(`[${pod.namespace}/${pod.name}] ${pod.status} | Ready: ${pod.ready} | Restarts: ${pod.restarts}`);
-                    addLog(`Age: ${pod.age} | Node: ${pod.nodeName} | IP: ${pod.podIp || 'N/A'}`);
-                    addLog('Labels: ' + JSON.stringify(pod.labels || {}));
+                    addLog('POD DETAIL UPDATE (từ /topic/pods-all):');
+                    addLog(`[${pod.namespace}/${pod.name}] Phase: ${pod.phase} | Ready: ${pod.ready}`);
+                    addLog(`Restarts: ${pod.restarts || 0} | Age: ${pod.age || 'N/A'} | Node: ${pod.nodeName || 'N/A'}`);
                     addLog('Full JSON: ' + message.body.substring(0, 300) + '...');
                     addLog('---');
                 } catch (e) {
-                    addLog('Lỗi parse PodDetailDto: ' + e);
+                    addLog('Lỗi parse Pod detail: ' + e, 'error');
                 }
             });
-            addLog('Đã subscribe /topic/pods-all');
+            addLog('Đã subscribe /topic/pods-all (chi tiết Pod)');
         }
 
-        // Auto reconnect khi mất kết nối
+        function subscribePodsSummary() {
+            if (!stompClient || !stompClient.connected) {
+                addLog('Chưa kết nối!', 'error');
+                return;
+            }
+            stompClient.subscribe('/topic/pods-summary', function (message) {
+                try {
+                    const data = JSON.parse(message.body);
+                    addLog('POD SUMMARY UPDATE (từ /topic/pods-summary):');
+                    addLog(`Total: ${data.totalPods} | Running: ${data.runningPods} | Pending: ${data.pendingPods}`);
+                    addLog(`Failed: ${data.failedPods} | Alerted: ${data.alertedPods}`);
+                    addLog('Last updated: ' + (data.lastUpdated ? new Date(data.lastUpdated).toLocaleString('vi-VN') : 'N/A'));
+                    addLog('---');
+                } catch (e) {
+                    addLog('Lỗi parse summary: ' + e, 'error');
+                }
+            });
+            addLog('Đã subscribe /topic/pods-summary (tổng hợp)');
+        }
+
+        // Auto reconnect mỗi 15 giây nếu mất kết nối
         setInterval(() => {
             if (!stompClient || !stompClient.connected) {
                 addLog('Mất kết nối → tự reconnect...');

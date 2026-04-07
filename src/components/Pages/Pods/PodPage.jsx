@@ -1,114 +1,106 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
+import { useSnackbar } from 'notistack';
+
 import SockJS from 'sockjs-client';
 import { Client } from '@stomp/stompjs';
 
-import { useDispatch, useSelector } from 'react-redux';
+import {
+    Box,
+    Typography,
+    CircularProgress,
+    Alert,
+    Chip,
+    Button,
+    IconButton,
+    Tooltip,
+    Stack,
+} from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
-import { Box, Typography, CircularProgress, Alert, Chip } from '@mui/material';
-import { fetchPods, updatePodRealtime } from '../../../store/reducers/slices/podsSlice'; // ← giả định bạn sẽ tạo slice này
-import { useSnackbar } from 'notistack';
+import DeleteIcon from '@mui/icons-material/Delete';
+import { FileText } from 'lucide-react';
+
+import { fetchPods, updatePodRealtime } from '../../../store/reducers/slices/podsSlice';
+import useConfirm from '../../../store/reducers/slices/useConfirm';
+
+import ResourcePage from '../resource/ResourcePage';
+import ResourceTable from '../resource/ResourceTable';
+import ResourceToolbar from '../resource/ResourceToolbar';
+import LogsDialog from './LogsDialog';
 
 const BACKEND_URL = import.meta.env.VITE_BACK_END_URL || 'http://localhost:8080';
 
 const PodsPage = () => {
+    // ──────────────────────────────────────────────
+    // STATES
+    // ──────────────────────────────────────────────
+    const [search, setSearch] = useState('');
+    const [namespace, setNamespace] = useState('all');
+    const [openLogsDialog, setOpenLogsDialog] = useState(false);
+    const [selectedPod, setSelectedPod] = useState(null);
+
+    // ──────────────────────────────────────────────
+    // REDUX & ROUTER
+    // ──────────────────────────────────────────────
     const dispatch = useDispatch();
-    const { pods = [], loading, error } = useSelector((state) => state.pods);
+    const navigate = useNavigate();
     const { enqueueSnackbar, closeSnackbar } = useSnackbar();
-    const handleDeletePod = async (namespace, podName) => {
-        try {
-            const response = await fetch(
-                `${BACKEND_URL}/api/pods/${namespace}/${podName}`,
-                {
-                    method: 'DELETE',
-                }
-            );
+    const { pods = [], loading, error } = useSelector((state) => state.pods);
+    const { confirm, ConfirmComponent } = useConfirm();
 
-            if (!response.ok) {
-                const text = await response.text();
-                throw new Error(text);
-            }
+    // ──────────────────────────────────────────────
+    // EFFECTS – TẤT CẢ Ở ĐÂY, TRƯỚC MỌI RETURN
+    // ──────────────────────────────────────────────
 
-
-
-        } catch (error) {
-            enqueueSnackbar(
-                `Xóa Pod thất bại: ${error.message}`,
-                { variant: 'error' }
-            );
-        }
-    };
-    // Load danh sách pods ban đầu
+    // 1. Fetch pods ban đầu
     useEffect(() => {
         dispatch(fetchPods());
     }, [dispatch]);
 
-    // WebSocket realtime update
+    // 2. WebSocket realtime
     useEffect(() => {
         const socket = new SockJS(`${BACKEND_URL}/ws`);
-
         const stompClient = new Client({
             webSocketFactory: () => socket,
             debug: () => { },
             reconnectDelay: 5000,
+
             onConnect: () => {
-                console.log("Connected to /topic/pods-all");
+                console.log('Connected to /topic/pods-all');
 
                 stompClient.subscribe('/topic/pods-all', (message) => {
                     const data = JSON.parse(message.body);
                     dispatch(updatePodRealtime(data));
-                    if (data.status === "Deleted") {
-                        enqueueSnackbar(
-                            `Pod ${data.name} (${data.namespace}) - ${data.status}`,
-                            {
-                                variant: 'success',
-                                action: (snackbarKey) => (
-                                    <button
-                                        onClick={() => closeSnackbar(snackbarKey)}
-                                        style={{
-                                            background: 'none',
-                                            border: 'none',
-                                            color: 'white',
-                                            fontWeight: 'bold',
-                                            cursor: 'pointer',
-                                            marginLeft: '16px',
-                                            padding: '4px 8px',
-                                            borderRadius: '4px',
-                                            backgroundColor: 'rgba(255,255,255,0.2)',
-                                        }}
-                                    >
-                                        ĐÓNG
-                                    </button>
-                                ),
-                            }
-                        );
-                    }
-                    else if (data.ready !== "1/1" || data.status === "CrashLoopBackOff") {
-                        enqueueSnackbar(
-                            `Pod ${data.name} (${data.namespace}) - ${data.status} (${data.ready})`,
-                            {
-                                variant: data.ready === "1/1" ? 'warning' : 'error',
-                                persist: data.status === "CrashLoopBackOff",
-                                action: (snackbarKey) => (
-                                    <button
-                                        onClick={() => closeSnackbar(snackbarKey)}
-                                        style={{
-                                            background: 'none',
-                                            border: 'none',
-                                            color: 'white',
-                                            fontWeight: 'bold',
-                                            cursor: 'pointer',
-                                            marginLeft: '16px',
-                                            padding: '4px 8px',
-                                            borderRadius: '4px',
-                                            backgroundColor: 'rgba(255,255,255,0.2)',
-                                        }}
-                                    >
-                                        ĐÓNG
-                                    </button>
-                                ),
-                            }
-                        );
-                    }
+
+                    const variant =
+                        data.ready === true
+                            ? 'success'
+                            : data.phase === 'Pending'
+                                ? 'warning'
+                                : 'error';
+
+                    enqueueSnackbar(`Pod ${data.name} (${data.namespace}) - ${data.phase}`, {
+                        variant,
+                        action: (snackbarKey) => (
+                            <button
+                                onClick={() => closeSnackbar(snackbarKey)}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'white',
+                                    fontWeight: 'bold',
+                                    cursor: 'pointer',
+                                    marginLeft: '16px',
+                                    padding: '4px 8px',
+                                    borderRadius: '4px',
+                                    backgroundColor: 'rgba(255,255,255,0.2)',
+                                }}
+                            >
+                                ĐÓNG
+                            </button>
+                        ),
+                    });
                 });
             },
         });
@@ -120,8 +112,81 @@ const PodsPage = () => {
         };
     }, [dispatch, enqueueSnackbar, closeSnackbar]);
 
+    // ──────────────────────────────────────────────
+    // DERIVED DATA
+    // ──────────────────────────────────────────────
+    const filteredPods = pods.filter((pod) => {
+        const matchSearch = pod.name.toLowerCase().includes(search.toLowerCase());
+        const matchNamespace = namespace === 'all' || pod.namespace === namespace;
+        return matchSearch && matchNamespace;
+    });
+
+    // ──────────────────────────────────────────────
+    // HANDLERS
+    // ──────────────────────────────────────────────
+    const handleDeletePod = async (namespace, podName) => {
+        try {
+            const response = await fetch(
+                `${BACKEND_URL}/api/pods/${namespace}/${podName}`,
+                { method: 'DELETE' }
+            );
+
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(text || 'Xóa pod thất bại');
+            }
+
+            enqueueSnackbar(`Đã xóa pod ${podName}`, { variant: 'success' });
+        } catch (err) {
+            enqueueSnackbar(`Xóa pod thất bại: ${err.message}`, { variant: 'error' });
+        }
+    };
+
+    const openLogs = (pod) => {
+        setSelectedPod(pod);
+        setOpenLogsDialog(true);
+    };
+
+    // ──────────────────────────────────────────────
+    // EARLY RETURNS (sau khi tất cả hooks đã gọi xong)
+    // ──────────────────────────────────────────────
+    if (loading) {
+        return (
+            <Box
+                sx={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    height: '60vh',
+                }}
+            >
+                <CircularProgress />
+            </Box>
+        );
+    }
+
+    if (error) {
+        return (
+            <Alert severity="error" sx={{ m: 3 }}>
+                {error}
+            </Alert>
+        );
+    }
+
+    // Nếu không có pod nào (và không redirect) – trường hợp fallback
+    if (pods.length === 0) {
+        return (
+            <Alert severity="info" sx={{ m: 3 }}>
+                Không tìm thấy pod nào. Vui lòng kiểm tra kết nối hoặc namespace.
+            </Alert>
+        );
+    }
+
+    // ──────────────────────────────────────────────
+    // COLUMNS cho DataGrid (hoặc ResourceTable)
+    // ──────────────────────────────────────────────
     const columns = [
-        { field: 'namespace', headerName: 'Namespace', width: 140, sortable: true },
+        { field: 'namespace', headerName: 'Namespace', width: 180, sortable: true },
         { field: 'name', headerName: 'Tên Pod', width: 300, sortable: true },
         {
             field: 'ready',
@@ -129,7 +194,7 @@ const PodsPage = () => {
             width: 90,
             renderCell: (params) => (
                 <Chip
-                    label={params.value}
+                    label={params.value || 'deleted'}
                     color={params.value === '1/1' ? 'success' : 'error'}
                     size="small"
                     variant="outlined"
@@ -144,167 +209,89 @@ const PodsPage = () => {
                 let color = 'default';
                 if (params.value === 'Running') color = 'success';
                 if (['Pending', 'Unknown'].includes(params.value)) color = 'warning';
-                if (['CrashLoopBackOff', 'Error', 'Failed'].includes(params.value)) color = 'error';
+                if (['CrashLoopBackOff', 'Error', 'Failed'].includes(params.value))
+                    color = 'error';
                 return <Chip label={params.value} color={color} size="small" />;
             },
         },
         { field: 'restarts', headerName: 'Restarts', width: 100, type: 'number' },
-        { field: 'age', headerName: 'Tuổi', width: 100 },
-        { field: 'nodeName', headerName: 'Node', width: 160 },
-
+        { field: 'age', headerName: 'Tuổi', width: 90 },
+        { field: 'nodeName', headerName: 'Node', width: 150 },
         {
             field: 'creationTimestamp',
             headerName: 'Tạo lúc',
-            width: 200,
-            valueFormatter: (value) => {
-                if (!value) return '';
-                return new Date(value).toLocaleString('vi-VN');
-            },
-        }
-        ,
+            width: 180,
+            valueFormatter: (value) => (value ? new Date(value).toLocaleString('vi-VN') : ''),
+        },
         {
             field: 'actions',
             headerName: 'Hành động',
             width: 160,
             sortable: false,
             renderCell: (params) => (
-                <button
-                    onClick={() => {
-                        if (window.confirm(`Bạn có chắc muốn xóa Pod ${params.row.name}?`)) {
-                            handleDeletePod(params.row.namespace, params.row.name);
-                        }
-                    }}
-                    style={{
-                        backgroundColor: '#d32f2f',
-                        color: 'white',
-                        border: 'none',
-                        padding: '4px 10px',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontSize: '0.75rem',
-                    }}
-                >
-                    XÓA
-                </button>
+                <Stack direction="row" spacing={1}>
+                    <Tooltip title="Xóa Pod">
+                        <IconButton
+                            color="error"
+                            size="small"
+                            onClick={async () => {
+                                const ok = await confirm(
+                                    `Bạn có chắc muốn xóa Pod ${params.row.namespace}/${params.row.name}?`
+                                );
+                                if (ok) {
+                                    handleDeletePod(params.row.namespace, params.row.name);
+                                }
+                            }}
+                        >
+                            <DeleteIcon />
+                        </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Xem Logs">
+                        <IconButton size="small" onClick={() => openLogs(params.row)}>
+                            <FileText color="orange" />
+                        </IconButton>
+                    </Tooltip>
+                </Stack>
             ),
-        }
+        },
     ];
 
-    if (loading) {
-        return (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
-                <CircularProgress />
-            </Box>
-        );
-    }
-
-    if (error) {
-        return <Alert severity="error" sx={{ m: 3 }}>{error}</Alert>;
-    }
-
-    if (pods.length === 0) {
-        return (
-            <Alert severity="info" sx={{ m: 3 }}>
-                Không tìm thấy pod nào. Vui lòng kiểm tra kết nối Kubernetes hoặc namespace.
-            </Alert>
-        );
-    }
-
+    // ──────────────────────────────────────────────
+    // MAIN RENDER
+    // ──────────────────────────────────────────────
     return (
-        <Box
-            sx={{
-                p: 2,
-                color: 'text.primary',
-            }}
-        >
-            <Typography variant="h5" gutterBottom>
-                Danh sách Pods Kubernetes
-            </Typography>
+        <div>
+            <ResourcePage
+                title="Danh sách Pods Kubernetes"
+                toolbar={
+                    <ResourceToolbar
+                        search={search}
+                        onSearchChange={setSearch}
+                        namespace={namespace}
+                        onNamespaceChange={setNamespace}
+                        onRefresh={() => dispatch(fetchPods())}
+                        onCreate={() => console.log('create pod')} // thay bằng navigate nếu cần
+                        onImport={() => console.log('import yaml')}
+                    />
+                }
+            >
+                <ResourceTable
+                    rows={filteredPods}
+                    columns={columns}
+                    getRowId={(row) => `${row.namespace}/${row.name}`}
+                />
+            </ResourcePage>
 
-            <DataGrid
-                rows={pods}
-                columns={columns}
-                getRowId={(row) => `${row.namespace}/${row.name}`}
-                pageSizeOptions={[10, 20, 50, 100]}
-                initialState={{
-                    pagination: { paginationModel: { pageSize: 25 } },
-                    sorting: { sortModel: [{ field: 'namespace', sort: 'asc' }] },
-                }}
-                disableRowSelectionOnClick
-                autoHeight
-                density="compact"
-                sx={[
-                    {
-                        backgroundColor: 'background.paper',
-                        border: 0,
-                        borderRadius: 2,
-                        overflow: 'hidden',
-
-                        '& .MuiDataGrid-columnHeaders': {
-                            backgroundColor: 'grey.500',
-                            color: 'common.gray',
-                            fontWeight: 'medium',
-                            borderBottom: '1px solid',
-                            borderColor: 'divider',
-                        },
-
-                        '& .MuiDataGrid-columnHeader': {
-                            px: 1.5,
-                            py: 1,
-                        },
-
-                        '& .MuiDataGrid-row': {
-                            borderBottom: '1px solid',
-                            borderColor: 'grey.800',
-                            '&:hover': {
-                                backgroundColor: 'action.hover',
-                            },
-                        },
-
-                        '& .MuiDataGrid-cell': {
-                            px: 1.5,
-                            py: 1,
-                            whiteSpace: 'normal',
-                            lineHeight: 'normal',
-                            borderBottom: 'none',
-                        },
-
-                        '& .MuiDataGrid-cell[data-field="name"]': {
-                            fontWeight: 'medium',
-                            color: 'primary.main',
-                        },
-
-                        '& .MuiDataGrid-cell:not([data-field="name"])': {
-                            color: 'text.secondary',
-                        },
-
-                        '& .MuiDataGrid-cell[data-field="podIp"], & .MuiDataGrid-cell[data-field="creationTimestamp"]': {
-                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                        },
-
-                        '& .MuiChip-root': {
-                            fontSize: '0.75rem',
-                        },
-                    },
-
-                    (theme) => theme.applyStyles('dark', {
-                        '& .MuiDataGrid-columnHeaders': {
-                            backgroundColor: 'grey.700',
-                        },
-
-                        '& .MuiDataGrid-row': {
-                            borderColor: 'grey.700',
-                        },
-
-                        '& .MuiDataGrid-cell[data-field="name"]': {
-                            color: 'primary.light',
-                        },
-                    }),
-                ]}
-
-            // hideFooter
+            <LogsDialog
+                open={openLogsDialog}
+                onClose={() => setOpenLogsDialog(false)}
+                namespace={selectedPod?.namespace}
+                podName={selectedPod?.name}
+                containers={selectedPod?.containers}
             />
-        </Box>
+
+            {ConfirmComponent}
+        </div>
     );
 };
 

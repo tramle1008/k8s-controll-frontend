@@ -1,7 +1,8 @@
 // src/store/slices/nodesSlice.js
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import api from '../../../api/api';
+
 import toast from 'react-hot-toast';
+import { api } from '../../../api/api';
 
 // ==========================
 // Async fetch ban đầu
@@ -13,10 +14,10 @@ export const fetchNodes = createAsyncThunk(
             const response = await api.get('/nodes');
             return response.data;
         } catch (error) {
-            console.error('Lỗi khi fetch nodes:', error);
+            console.error('Lỗi khi fetch nodes:');
             toast.error('Không thể lấy danh sách nodes');
             return rejectWithValue(
-                error.response?.data?.message || 'Không thể lấy danh sách nodes'
+                error.response?.data?.message || 'Chưa có node nào'
             );
         }
     }

@@ -18,7 +18,7 @@ createRoot(document.getElementById('root')).render(
       <ThemeProvider>  {/* Custom ThemeProvider của bạn */}
         {/* Đặt SnackbarProvider BÊN TRONG ThemeProvider */}
         <SnackbarProvider
-          maxSnack={1}                    // max toast cùng lúc
+          maxSnack={3}                    // max toast cùng lúc
           preventDuplicate                // tránh duplicate
           anchorOrigin={{ vertical: 'top', horizontal: 'right' }}  // vị trí
           autoHideDuration={null}         // Optional: nếu muốn persistent mặc định, nhưng bạn sẽ override per toast

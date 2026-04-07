@@ -1,13 +1,13 @@
 import React, { useEffect } from 'react';
 import SockJS from 'sockjs-client';
 import { Client } from '@stomp/stompjs';
-
 import { useDispatch, useSelector } from 'react-redux';
 import { DataGrid } from '@mui/x-data-grid';
 import { Box, Typography, CircularProgress, Alert, Chip } from '@mui/material';
 import { fetchNodes, updateNodeRealtime } from '../../../store/reducers/slices/nodesSlice';
 import { useSnackbar } from 'notistack';
-
+import { Button } from '@mui/material';
+import DeleteIcon from '@mui/icons-material/Delete';
 
 const BACKEND_URL = import.meta.env.VITE_BACK_END_URL || 'http://localhost:8080';
 
@@ -75,6 +75,43 @@ const NodesPage = () => {
             stompClient.deactivate();
         };
     }, [dispatch, enqueueSnackbar, closeSnackbar]);  // ← Thêm dependency để React biết
+    const { selectedClusterId, clusters } = useSelector((state) => state.cluster);
+
+
+    const handleDeleteNode = async (nodeName) => {
+
+        const confirmDelete = window.confirm(`Bạn có chắc muốn xóa node ${nodeName}?`);
+
+        if (!confirmDelete) return;
+
+        try {
+
+            const res = await fetch(
+                `${BACKEND_URL}/api/create/${selectedClusterId}/nodes/${nodeName}`,
+                {
+                    method: "DELETE"
+                }
+            );
+
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(text || "Delete failed");
+            }
+
+            enqueueSnackbar(`Đã xóa node ${nodeName}`, { variant: "success" });
+
+            // reload nodes
+            dispatch(fetchNodes());
+
+        } catch (err) {
+
+            enqueueSnackbar(`Xóa node thất bại: ${err.message}`, {
+                variant: "error"
+            });
+
+        }
+    };
+
 
     const columns = [
         { field: 'name', headerName: 'Tên Node', width: 180, sortable: true },
@@ -109,7 +146,48 @@ const NodesPage = () => {
             renderCell: (params) =>
                 `${params.row.memoryAllocatable}/${params.row.memoryCapacity}`,
         },
-        { field: 'podsAllocatable', headerName: 'Pods Allocatable', width: 140 }
+        { field: 'podsAllocatable', headerName: 'Pods Allocatable', width: 140 },
+        {
+            field: 'actions',
+            headerName: 'Hành động',
+            width: 140,
+            sortable: false,
+            align: 'center',
+            headerAlign: 'center',
+            renderCell: (params) => {
+
+                const nodeName = params.row.name;
+                const role = params.row.role;
+
+                if (role === "master" || role === "MASTER") {
+                    return (
+                        <Chip label="Protected" size="small" />
+                    );
+                }
+
+                return (
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            height: '100%',
+                            width: '100%',
+                        }}
+                    >
+                        <Button
+                            variant="outlined"
+                            color="error"
+                            size="small"
+                            startIcon={<DeleteIcon />}
+                            onClick={() => handleDeleteNode(nodeName)}
+                        >
+                            Delete
+                        </Button>
+                    </Box>
+                );
+            }
+        }
 
 
     ];
