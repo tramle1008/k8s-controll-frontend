@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useSnackbar } from "notistack";
-
+import ReplayIcon from '@mui/icons-material/Replay';
 import ResourcePage from "../resource/ResourcePage";
 import ResourceToolbar from "../resource/ResourceToolbar";
 import ResourceTable from "../resource/ResourceTable";
@@ -147,6 +147,48 @@ const DeploymentPage = () => {
                 }
             );
 
+        }
+    };
+
+    const handleRolloutRestart = async (namespace, name) => {
+        try {
+            const res = await fetch(
+                `${BACKEND_URL}/api/deployments/rollout-restart`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        namespace: namespace,
+                        deploymentName: name,
+                    }),
+                }
+            );
+
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(text);
+            }
+
+            enqueueSnackbar(
+                `Rollout restart ${name} thành công`,
+                {
+                    variant: "success",
+                    autoHideDuration: 1000
+                }
+            );
+
+            dispatch(fetchDeployments());
+
+        } catch (err) {
+            enqueueSnackbar(
+                `Rollout restart thất bại: ${err.message}`,
+                {
+                    variant: "error",
+                    autoHideDuration: 1000
+                }
+            );
         }
     };
 
@@ -416,6 +458,25 @@ const DeploymentPage = () => {
                                 onClick={() => handleOpenScaleDialog(params.row)}
                             >
                                 <PackagePlus fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+
+                        <Tooltip title="Rollout Restart">
+                            <IconButton
+                                color="primary"
+                                size="small"
+                                onClick={async () => {
+
+                                    if (await confirm(`Restart Deployment ${params.row.name}?`)) {
+                                        handleRolloutRestart(
+                                            params.row.namespace,
+                                            params.row.name
+                                        );
+                                    }
+
+                                }}
+                            >
+                                <ReplayIcon size={18} />
                             </IconButton>
                         </Tooltip>
                     </Stack>

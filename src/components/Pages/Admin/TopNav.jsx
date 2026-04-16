@@ -34,13 +34,22 @@ export default function TopNav({ onToggleSidebar }) {
             });
 
             const text = await res.text();
-            enqueueSnackbar(text, {
+
+            if (!res.ok) {
+                enqueueSnackbar(text || "Upload failed", {
+                    variant: "error",
+                    autoHideDuration: 2000
+                });
+                return;
+            }
+
+            enqueueSnackbar(text || "Upload success", {
                 variant: "success",
                 autoHideDuration: 1000
             });
 
         } catch (err) {
-            alert("Lỗi: " + err.message);
+            console.log(err);
         }
 
         e.target.value = null; // reset

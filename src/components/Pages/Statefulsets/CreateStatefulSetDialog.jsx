@@ -23,7 +23,7 @@ export default function CreateStatefulSetDialog({ open, onOpenChange, onCreated 
     const { enqueueSnackbar } = useSnackbar();
     const dispatch = useDispatch();
     const { list = [] } = useSelector((state) => state.namespaceProduct);
-
+    const [envFromList, setEnvFromList] = useState([]);
     const [processing, setProcessing] = useState(false);
     const [configMaps, setConfigMaps] = useState([]);
 
@@ -35,7 +35,22 @@ export default function CreateStatefulSetDialog({ open, onOpenChange, onCreated 
         container: {
             name: "",
             image: "",
-            env: []
+            ports: [
+                5432
+            ],
+            resources: {
+                requests: {
+                    cpu: "",
+                    memory: ""
+                },
+                limits: {
+                    cpu: "",
+                    memory: ""
+                }
+            },
+            env: [],
+            envFrom: [],
+            volumeMounts: []
         },
         pvc: {
             name: "postgres-storage",
@@ -104,6 +119,30 @@ export default function CreateStatefulSetDialog({ open, onOpenChange, onCreated 
             pvc: { ...prev.pvc, [field]: value }
         }));
 
+    const loadEnvFrom = async () => {
+        try {
+            const res = await coreApi.get(`/configmaps/${form.namespace}`);
+
+            const cmList = Array.isArray(res?.data) ? res.data : [];
+
+            setEnvFromList(
+                cmList.map(x => ({
+                    name: x.name,
+                    type: "configMap"
+                }))
+            );
+
+        } catch (err) {
+            console.error("loadEnvFrom error:", err);
+        }
+    };
+
+
+    useEffect(() => {
+        if (!form.namespace) return;
+        loadEnvFrom();
+    }, [form.namespace]);
+
     /** -----------------------------
      * ENV VAR
      ------------------------------ */
@@ -124,7 +163,12 @@ export default function CreateStatefulSetDialog({ open, onOpenChange, onCreated 
         updateContainer("env",
             form.container.env.filter(e => e.id !== id)
         );
-
+    const envFrom = form.container.envFrom
+        .filter(e => e.name)
+        .map(e => ({
+            type: e.type,
+            name: e.name
+        }));
     /** -----------------------------
      * INIT SQL
      ------------------------------ */
@@ -187,6 +231,13 @@ export default function CreateStatefulSetDialog({ open, onOpenChange, onCreated 
                 readOnly: false
             }
         ];
+        const envFrom = form.container.envFrom
+            .filter(e => e.name)
+            .map(e => ({
+                configMapRef: {
+                    name: e.name
+                }
+            }));
 
         const volumes = [];
 
@@ -231,6 +282,13 @@ export default function CreateStatefulSetDialog({ open, onOpenChange, onCreated 
                     ],
 
                     env: [...defaultEnv, ...envList],
+                    envFrom: form.container.envFrom
+                        .filter(e => e.name)
+                        .map(e => ({
+                            configMapRef: {
+                                name: e.name
+                            }
+                        })),
                     volumeMounts
                 }
             ],
@@ -336,21 +394,59 @@ export default function CreateStatefulSetDialog({ open, onOpenChange, onCreated 
                         </div>
                     </div>
 
-                    {/* CONTAINER */}
-                    <TextField
-                        fullWidth
-                        label="Container Name"
-                        value={form.container.name}
-                        onChange={(e) => updateContainer("name", e.target.value)}
-                    />
+                    {/* CONTAINER NAME */}
+                    <div className="mb-2">
+                        <Label>Container Name</Label>
+                        <Input
+                            value={form.container.name}
+                            onChange={(e) => updateContainer("name", e.target.value)}
+                        />
+                    </div>
 
-                    <TextField
-                        fullWidth
-                        label="Image"
-                        value={form.container.image}
-                        onChange={(e) => updateContainer("image", e.target.value)}
-                    />
+                    {/* IMAGE */}
+                    <div className="mb-2">
+                        <Label>Image</Label>
+                        <Input
+                            value={form.container.image}
+                            onChange={(e) => updateContainer("image", e.target.value)}
+                        />
+                    </div>
 
+                    {/* PORTS */}
+                    <div>
+                        <Label>Ports</Label>
+
+                        {form.container.ports.map((port, index) => (
+                            <div key={index} className="flex gap-2 mt-2">
+                                <Input
+                                    type="number"
+                                    value={port}
+                                    onChange={(e) => {
+                                        const newPorts = [...form.container.ports];
+                                        newPorts[index] = Number(e.target.value);
+                                        updateContainer("ports", newPorts);
+                                    }}
+                                    className="flex-1"
+                                />
+                                <Button
+                                    type="button"
+                                    onClick={() => {
+                                        const newPorts = form.container.ports.filter((_, i) => i !== index);
+                                        updateContainer("ports", newPorts);
+                                    }}
+                                >
+                                    ✕
+                                </Button>
+                            </div>
+                        ))}
+
+                        <Button
+                            type="button"
+                            onClick={() => updateContainer("ports", [...form.container.ports, 0])}
+                        >
+                            + Add Port
+                        </Button>
+                    </div>
                     {/* ENV */}
                     <div>
                         <div className="flex justify-between">
@@ -377,6 +473,79 @@ export default function CreateStatefulSetDialog({ open, onOpenChange, onCreated 
                                 <Button
                                     type="button"
                                     onClick={() => removeEnv(env.id)}
+                                >
+                                    ✕
+                                </Button>
+                            </div>
+                        ))}
+                    </div>
+                    {/* ENV FROM */}
+                    <div>
+                        <div className="flex justify-between">
+                            <Label>EnvFrom (ConfigMap / Secret)</Label>
+                            <Button
+                                type="button"
+                                onClick={() =>
+                                    updateContainer("envFrom", [
+                                        ...form.container.envFrom,
+                                        { id: Date.now(), name: "", type: "configMap" }
+                                    ])
+                                }
+                            >
+                                + Add
+                            </Button>
+                        </div>
+
+                        {form.container.envFrom.map(item => (
+                            <div key={item.id} className="flex gap-2 mt-2">
+
+                                <Select
+                                    value={item.type}
+                                    onValueChange={(v) =>
+                                        updateContainer("envFrom",
+                                            form.container.envFrom.map(e =>
+                                                e.id === item.id ? { ...e, type: v } : e
+                                            )
+                                        )
+                                    }
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Type" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="configMap">ConfigMap</SelectItem>
+                                    </SelectContent>
+                                </Select>
+
+                                <Select
+                                    value={item.name}
+                                    onValueChange={(v) =>
+                                        updateContainer("envFrom",
+                                            form.container.envFrom.map(e =>
+                                                e.id === item.id ? { ...e, name: v } : e
+                                            )
+                                        )
+                                    }
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select name" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {envFromList.map(x => (
+                                            <SelectItem key={x.name} value={x.name}>
+                                                {x.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+
+                                <Button
+                                    type="button"
+                                    onClick={() =>
+                                        updateContainer("envFrom",
+                                            form.container.envFrom.filter(e => e.id !== item.id)
+                                        )
+                                    }
                                 >
                                     ✕
                                 </Button>
@@ -430,27 +599,65 @@ export default function CreateStatefulSetDialog({ open, onOpenChange, onCreated 
                             </div>
                         ))}
                     </div>
+                    {/* Resources */}
+                    <div>
+                        <Label>Resources</Label>
+                        <div className="grid grid-cols-2 gap-2 mt-2">
 
-                    {/* PVC */}
-                    <div className="space-y-2">
-                        <Label>PVC</Label>
-                        <Input
-                            placeholder="PVC name"
-                            value={form.pvc.name}
-                            onChange={(e) => updatePVC("name", e.target.value)}
-                        />
-                        <Input
-                            placeholder="StorageClass"
-                            value={form.pvc.storageClassName}
-                            onChange={(e) =>
-                                updatePVC("storageClassName", e.target.value)
-                            }
-                        />
-                        <Input
-                            placeholder="2Gi"
-                            value={form.pvc.storage}
-                            onChange={(e) => updatePVC("storage", e.target.value)}
-                        />
+                            <Input
+                                placeholder="CPU Request"
+                                value={form.container.resources.requests.cpu}
+                                onChange={e => updateContainer("resources", {
+                                    ...form.container.resources,
+                                    requests: { ...form.container.resources.requests, cpu: e.target.value }
+                                })}
+                            />
+                            <Input
+                                placeholder="Memory Request"
+                                value={form.container.resources.requests.memory}
+                                onChange={e => updateContainer("resources", {
+                                    ...form.container.resources,
+                                    requests: { ...form.container.resources.requests, memory: e.target.value }
+                                })}
+                            />
+                            <Input
+                                placeholder="CPU Limit"
+                                value={form.container.resources.limits.cpu}
+                                onChange={e => updateContainer("resources", {
+                                    ...form.container.resources,
+                                    limits: { ...form.container.resources.limits, cpu: e.target.value }
+                                })}
+                            />
+                            <Input
+                                placeholder="Memory Limit"
+                                value={form.container.resources.limits.memory}
+                                onChange={e => updateContainer("resources", {
+                                    ...form.container.resources,
+                                    limits: { ...form.container.resources.limits, memory: e.target.value }
+                                })}
+                            />
+                        </div>
+                        {/* PVC */}
+                        <div className="space-y-2">
+                            <Label>PVC</Label>
+                            <Input
+                                placeholder="PVC name"
+                                value={form.pvc.name}
+                                onChange={(e) => updatePVC("name", e.target.value)}
+                            />
+                            <Input
+                                placeholder="StorageClass"
+                                value={form.pvc.storageClassName}
+                                onChange={(e) =>
+                                    updatePVC("storageClassName", e.target.value)
+                                }
+                            />
+                            <Input
+                                placeholder="2Gi"
+                                value={form.pvc.storage}
+                                onChange={(e) => updatePVC("storage", e.target.value)}
+                            />
+                        </div>
                     </div>
 
                     {/* FOOTER */}

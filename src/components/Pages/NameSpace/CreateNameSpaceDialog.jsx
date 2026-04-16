@@ -74,7 +74,8 @@ export default function CreateNamespaceDialog({
         } catch (err) {
 
             enqueueSnackbar(err || "Tạo namespace thất bại", {
-                variant: "error"
+                variant: "error",
+                autoHideDuration: 2000
             });
 
         }

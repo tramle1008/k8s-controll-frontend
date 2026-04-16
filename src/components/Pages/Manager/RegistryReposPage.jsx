@@ -87,7 +87,7 @@ export default function RegistryManagerPage() {
 
             <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
                 <Typography variant="h5" fontWeight={700}>
-                    Registry Manager
+                    Private Registry Manager
                 </Typography>
 
                 <Button variant="contained" onClick={() => setOpenUpload(true)}>

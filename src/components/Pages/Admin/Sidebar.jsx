@@ -31,12 +31,12 @@ const menuGroups = [
                 roles: ["ADMIN", "USER"],
                 children: [
                     { label: 'Name Space', to: '/workloads/namespace' },
-                    { label: 'Deployments', to: '/workloads/deployments' },
-                    { label: 'StatefulSet', to: '/workloads/statefulset' },
                     { label: 'ConfigMaps', to: '/workloads/configmap' },
-                    { label: 'Secrets', to: '/workloads/secrets' },
-                    { label: 'HPA', to: '/workloads/hpa' },
+                    { label: 'StatefulSet', to: '/workloads/statefulset' },
+                    { label: 'Deployments', to: '/workloads/deployments' },
                     { label: 'Pods', to: '/workloads/pods' },
+                    { label: 'HPA', to: '/workloads/hpa' },
+                    { label: 'Secrets', to: '/workloads/secrets' },
                 ],
             },
 
@@ -46,26 +46,20 @@ const menuGroups = [
                 label: 'Networking',
                 roles: ["ADMIN", "USER"],
                 children: [
-                    { label: 'Services', to: '/networking/services' }, // USER dùng được
-                ],
-            },
-            {
-                icon: 'globe',
-                label: 'Ingress',
-                roles: ["ADMIN"],
-                children: [
+                    { label: 'Services', to: '/networking/services' },
                     { label: 'Ingress', to: '/networking/ingress' },
                 ],
             },
             {
                 icon: 'database',
                 label: 'Storage',
-                roles: ["ADMIN"],
+                roles: ["ADMIN", "USER"],
                 children: [
                     { label: 'PVC', to: '/storage/pvc' },
                     { label: 'PV', to: '/storage/pv' },
                 ],
             },
+
             {
                 icon: 'cubes',
                 label: 'Manager Cluster',
@@ -74,18 +68,12 @@ const menuGroups = [
                     { label: 'Manager', to: '/cluster/manager' },
                     { label: 'Users', to: '/cluster/users' },
                     { label: 'Registry', to: '/cluster/registry' },
+                    { label: 'Addons', to: '/cluster/addons' },
+                    { label: 'Metallb', to: '/cluster/lb' },
                 ],
             },
 
-            // ===== USER =====
-            {
-                icon: 'user',
-                label: 'Profile',
-                roles: ["USER"],
-                children: [
-                    { label: 'My Info', to: '/user/info' },
-                ],
-            }
+
         ],
     },
 ];

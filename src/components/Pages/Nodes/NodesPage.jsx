@@ -8,6 +8,7 @@ import { fetchNodes, updateNodeRealtime } from '../../../store/reducers/slices/n
 import { useSnackbar } from 'notistack';
 import { Button } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
+import useConfirm from '../../../store/reducers/slices/useConfirm';
 
 const BACKEND_URL = import.meta.env.VITE_BACK_END_URL || 'http://localhost:8080';
 
@@ -17,7 +18,7 @@ const NodesPage = () => {
     const dispatch = useDispatch();
     const { nodes = [], loading, error } = useSelector((state) => state.nodes);
     const { enqueueSnackbar, closeSnackbar } = useSnackbar();
-
+    const { confirm, ConfirmComponent } = useConfirm();
 
     useEffect(() => {
         dispatch(fetchNodes());
@@ -80,9 +81,9 @@ const NodesPage = () => {
 
     const handleDeleteNode = async (nodeName) => {
 
-        const confirmDelete = window.confirm(`Bạn có chắc muốn xóa node ${nodeName}?`);
-
-        if (!confirmDelete) return;
+        if (!(await confirm(`Bạn có chắc muốn xóa node ${nodeName}?`))) {
+            return;
+        }
 
         try {
 
@@ -98,7 +99,7 @@ const NodesPage = () => {
                 throw new Error(text || "Delete failed");
             }
 
-            enqueueSnackbar(`Đã xóa node ${nodeName}`, { variant: "success" });
+            enqueueSnackbar(`Đã xóa node ${nodeName}`, { variant: "success", autoHideDuration: 2000 });
 
             // reload nodes
             dispatch(fetchNodes());
@@ -106,7 +107,8 @@ const NodesPage = () => {
         } catch (err) {
 
             enqueueSnackbar(`Xóa node thất bại: ${err.message}`, {
-                variant: "error"
+                variant: "error",
+                autoHideDuration: 2000
             });
 
         }
@@ -214,115 +216,119 @@ const NodesPage = () => {
     }
 
     return (
-        <Box
-            sx={{
-                p: 2,  // giảm padding nếu cần
-                // Xóa minHeight: '100vh' để tránh kháng cự cuối trang (dashboard đã xử lý height)
-                // backgroundColor: 'background.default',  // CssBaseline đã lo body, không cần set lại
-                color: 'text.primary',
-            }}
-        >
-            <Typography variant="h5" gutterBottom>
-                Danh sách Nodes Kubernetes
-            </Typography>
-
-            <DataGrid
-                rows={nodes}
-                columns={columns}
-                getRowId={(row) => row.name || 'unknown'}
-                pageSizeOptions={[5, 10, 20]}
-                initialState={{
-                    pagination: { paginationModel: { pageSize: 10 } },
-                    sorting: { sortModel: [{ field: 'name', sort: 'asc' }] },
+        <>
+            <Box
+                sx={{
+                    p: 2,  // giảm padding nếu cần
+                    // Xóa minHeight: '100vh' để tránh kháng cự cuối trang (dashboard đã xử lý height)
+                    // backgroundColor: 'background.default',  // CssBaseline đã lo body, không cần set lại
+                    color: 'text.primary',
                 }}
-                disableRowSelectionOnClick
-                autoHeight
-                density="compact"
-                sx={[
-                    {
-                        // Style chung (áp dụng cho cả light & dark)
-                        backgroundColor: 'background.paper',
-                        border: 0,
-                        borderRadius: 2,
-                        overflow: 'hidden',
+            >
+                <Typography variant="h5" gutterBottom>
+                    Danh sách Nodes Kubernetes
+                </Typography>
 
-                        '& .MuiDataGrid-columnHeaders': {
-                            backgroundColor: 'grey.500',      // gray-500 light (MUI palette)
-                            color: 'common.gray',
-                            fontWeight: 'medium',
-                            borderBottom: '1px solid',
-                            borderColor: 'divider',
-                        },
+                <DataGrid
+                    rows={nodes}
+                    columns={columns}
+                    getRowId={(row) => row.name || 'unknown'}
+                    pageSizeOptions={[5, 10, 20]}
+                    initialState={{
+                        pagination: { paginationModel: { pageSize: 10 } },
+                        sorting: { sortModel: [{ field: 'name', sort: 'asc' }] },
+                    }}
+                    disableRowSelectionOnClick
+                    autoHeight
+                    density="compact"
+                    sx={[
+                        {
+                            // Style chung (áp dụng cho cả light & dark)
+                            backgroundColor: 'background.paper',
+                            border: 0,
+                            borderRadius: 2,
+                            overflow: 'hidden',
 
-                        '& .MuiDataGrid-columnHeader': {
-                            px: 1.5,
-                            py: 1,
-                        },
+                            '& .MuiDataGrid-columnHeaders': {
+                                backgroundColor: 'grey.500',      // gray-500 light (MUI palette)
+                                color: 'common.gray',
+                                fontWeight: 'medium',
+                                borderBottom: '1px solid',
+                                borderColor: 'divider',
+                            },
 
-                        '& .MuiDataGrid-row': {
-                            borderBottom: '1px solid',
-                            borderColor: 'grey.800',          // gray-800 light
-                            '&:hover': {
-                                backgroundColor: 'action.hover', // MUI tự động hover (light: gray nhạt)
+                            '& .MuiDataGrid-columnHeader': {
+                                px: 1.5,
+                                py: 1,
+                            },
+
+                            '& .MuiDataGrid-row': {
+                                borderBottom: '1px solid',
+                                borderColor: 'grey.800',          // gray-800 light
+                                '&:hover': {
+                                    backgroundColor: 'action.hover', // MUI tự động hover (light: gray nhạt)
+                                },
+                            },
+
+                            '& .MuiDataGrid-cell': {
+                                px: 1.5,
+                                py: 1,
+                                whiteSpace: 'normal',
+                                lineHeight: 'normal',
+                                borderBottom: 'none',
+                            },
+
+                            '& .MuiDataGrid-cell[data-field="name"]': {
+                                fontWeight: 'medium',
+                                color: 'primary.main',            // primary.main light: blue-600/700
+                            },
+
+                            '& .MuiDataGrid-cell:not([data-field="name"])': {
+                                color: 'text.secondary',          // text.secondary light: gray-600/700
+                            },
+
+                            '& .MuiDataGrid-cell[data-field="kubeletVersion"], & .MuiDataGrid-cell[data-field="internalIP"]': {
+                                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                                color: 'text.secondary',
+                            },
+
+                            '& .MuiChip-root': {
+                                fontSize: '0.75rem',
                             },
                         },
 
-                        '& .MuiDataGrid-cell': {
-                            px: 1.5,
-                            py: 1,
-                            whiteSpace: 'normal',
-                            lineHeight: 'normal',
-                            borderBottom: 'none',
-                        },
-
-                        '& .MuiDataGrid-cell[data-field="name"]': {
-                            fontWeight: 'medium',
-                            color: 'primary.main',            // primary.main light: blue-600/700
-                        },
-
-                        '& .MuiDataGrid-cell:not([data-field="name"])': {
-                            color: 'text.secondary',          // text.secondary light: gray-600/700
-                        },
-
-                        '& .MuiDataGrid-cell[data-field="kubeletVersion"], & .MuiDataGrid-cell[data-field="internalIP"]': {
-                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                            color: 'text.secondary',
-                        },
-
-                        '& .MuiChip-root': {
-                            fontSize: '0.75rem',
-                        },
-                    },
-
-                    // Dark mode override – dùng applyStyles để MUI tự inject CSS vars
-                    (theme) => theme.applyStyles('dark', {
-                        '& .MuiDataGrid-columnHeaders': {
-                            backgroundColor: 'grey.700',      // gray-700 dark
-                        },
-
-                        '& .MuiDataGrid-row': {
-                            borderColor: 'grey.700',
-                            '&:hover': {
-                                backgroundColor: 'action.hover', // MUI tự động hover dark (gray đậm hơn)
+                        // Dark mode override – dùng applyStyles để MUI tự inject CSS vars
+                        (theme) => theme.applyStyles('dark', {
+                            '& .MuiDataGrid-columnHeaders': {
+                                backgroundColor: 'grey.700',      // gray-700 dark
                             },
-                        },
 
-                        '& .MuiDataGrid-cell[data-field="name"]': {
-                            color: 'primary.light',           // primary.light dark: blue sáng hơn (blue-400)
-                        },
+                            '& .MuiDataGrid-row': {
+                                borderColor: 'grey.700',
+                                '&:hover': {
+                                    backgroundColor: 'action.hover', // MUI tự động hover dark (gray đậm hơn)
+                                },
+                            },
 
-                        '& .MuiDataGrid-cell:not([data-field="name"])': {
-                            color: 'text.secondary',          // text.secondary dark: gray-400/300
-                        },
+                            '& .MuiDataGrid-cell[data-field="name"]': {
+                                color: 'primary.light',           // primary.light dark: blue sáng hơn (blue-400)
+                            },
 
-                        '& .MuiDataGrid-cell[data-field="kubeletVersion"], & .MuiDataGrid-cell[data-field="internalIP"]': {
-                            color: 'text.secondary',
-                        },
-                    }),
-                ]}
-                hideFooter
-            />
-        </Box>
+                            '& .MuiDataGrid-cell:not([data-field="name"])': {
+                                color: 'text.secondary',          // text.secondary dark: gray-400/300
+                            },
+
+                            '& .MuiDataGrid-cell[data-field="kubeletVersion"], & .MuiDataGrid-cell[data-field="internalIP"]': {
+                                color: 'text.secondary',
+                            },
+                        }),
+                    ]}
+                    hideFooter
+                />
+            </Box>
+
+            {ConfirmComponent}
+        </>
     );
 };
 

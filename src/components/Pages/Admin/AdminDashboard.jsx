@@ -48,7 +48,7 @@ export default function AdminDashboard() {
     const { metrics, loading: loadingMetrics, error: metricsError } = useSelector(
         state => state.metricsCluster
     );
-
+    const userRole = localStorage.getItem("role");
     // ==== Tổng loading cho Dashboard ====
     const loading =
         loadingNode ||
@@ -190,12 +190,14 @@ export default function AdminDashboard() {
             )}
 
             <div className="bg-[hsl(var(--card))] rounded-lg border border-[hsl(var(--border))] overflow-hidden relative min-h-[300px] md:min-h-[200px]">
-                <Button
-                    onClick={() => setOpen(true)}
-                    className="absolute top-4 z-10 px-5 py-2 text-white left-2"
-                >
-                    Add Node
-                </Button>
+                {userRole === "ADMIN" && (
+                    <Button
+                        onClick={() => setOpen(true)}
+                        className="absolute top-4 z-10 px-5 py-2 text-white left-2"
+                    >
+                        Add Node
+                    </Button>
+                )}
 
                 <NodeCardMetrics
                     onShowTerminal={(info) => {

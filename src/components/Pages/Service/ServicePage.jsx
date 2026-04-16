@@ -199,17 +199,25 @@ export default function ServicePage() {
             }
         }
         ,
-
         {
-            field: "clusterIP",
-            headerName: "Cluster IP",
-            flex: 1
+            field: "selector",
+            headerName: "Selector",
+            flex: 1,
+            renderCell: (params) => {
+                const sel = params.value;
+                if (!sel) return "—";
+
+                return Object.entries(sel)
+                    .map(([k, v]) => `${k}=${v}`)
+                    .join(", ");
+            }
         },
 
         {
             field: "ports",
             headerName: "Ports",
             flex: 2,
+
             renderCell: (params) => {
 
                 const ports = params.value || [];
@@ -232,7 +240,35 @@ export default function ServicePage() {
 
             }
         },
+        {
+            field: "accessUrl",
+            headerName: "URL",
+            flex: 1.5,   // lớn hơn các cột khác → rộng hơn
+            minWidth: 180,
+            renderCell: (params) => {
+                const url = params.value;
 
+                if (!url) {
+                    return "—";
+                }
+
+                return (
+                    <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                            color: "#1976d2",
+                            textDecoration: "underline",
+                            fontWeight: 500,
+                            cursor: "pointer"
+                        }}
+                    >
+                        {url}
+                    </a>
+                );
+            }
+        }, ,
         {
             field: "actions",
             headerName: "Actions",

@@ -34,7 +34,7 @@ export default function PodsDialog({
     };
 
     const handleDeletePod = async (namespace, podName) => {
-        if (!window.confirm(`Xóa pod ${podName}?`)) return;
+
 
         try {
             const response = await fetch(

@@ -26,6 +26,7 @@ import {
 import { useDispatch, useSelector } from "react-redux";
 import { fetchProjectNamespaces } from "../../../store/reducers/slices/namespaceProductSlice";
 import UploadImageDialog from "../Manager/UploadImageDialog";
+import { coreApi } from "../../../api/api";
 
 export default function CreateDeploymentDialog({
     open,
@@ -40,7 +41,7 @@ export default function CreateDeploymentDialog({
     const [selectedRepo, setSelectedRepo] = useState("");
     const [selectedTag, setSelectedTag] = useState("");
     const [containerEdited, setContainerEdited] = useState(false);
-
+    const [envFromList, setEnvFromList] = useState([]);
     // ------------------------------
     // FORM STATE
     // ------------------------------
@@ -53,6 +54,7 @@ export default function CreateDeploymentDialog({
             name: "",
             image: "",
             imagePullPolicy: "Always",
+            envFrom: []
         },
     });
     const [ports, setPorts] = useState([""]);
@@ -63,8 +65,8 @@ export default function CreateDeploymentDialog({
 
     const [volumeMounts, setVolumeMounts] = useState([]);
     const [resources, setResources] = useState({
-        requests: { cpu: "250m", memory: "256Mi" },
-        limits: { cpu: "500m", memory: "512Mi" },
+        requests: { cpu: "25m", memory: "50Mi" },
+        limits: { cpu: "50m", memory: "100Mi" },
     });
     const [volumes, setVolumes] = useState([]);
 
@@ -145,6 +147,25 @@ export default function CreateDeploymentDialog({
         dispatch(fetchProjectNamespaces());
     }, [dispatch]);
 
+
+    // EnvFrom
+    useEffect(() => {
+        if (!form.namespace) return;
+
+        const load = async () => {
+            const res = await coreApi.get(`/configmaps/${form.namespace}`);
+
+            setEnvFromList(
+                (res.data || []).map(x => ({
+                    name: x.name,
+                    type: "configMap"
+                }))
+            );
+        };
+
+        load();
+    }, [form.namespace]);
+
     // ------------------------------
     // HANDLE REPO SELECT
     // ------------------------------
@@ -186,7 +207,7 @@ export default function CreateDeploymentDialog({
             pullPolicy = "Always";
         } else if (imageSource === "dockerhub") {
             img = `${form.dockerUser}/${selectedRepo}:${tag}`;
-            pullPolicy = "IfNotPresent";
+            pullPolicy = "Always";
         }
 
         updateContainer("image", img);
@@ -230,6 +251,30 @@ export default function CreateDeploymentDialog({
                                 env: envVars
                                     .filter(e => e.name.trim() !== "")
                                     .map(e => ({ name: e.name, value: e.value })),
+
+                                envFrom: form.container.envFrom
+                                    .filter(e => e.name)
+                                    .map(e => {
+                                        if (e.type === "configMap") {
+                                            return {
+                                                configMapRef: {
+                                                    name: e.name
+                                                }
+                                            };
+                                        }
+
+                                        if (e.type === "secret") {
+                                            return {
+                                                secretRef: {
+                                                    name: e.name
+                                                }
+                                            };
+                                        }
+
+                                        return null;
+                                    })
+                                    .filter(Boolean),
+
                                 volumeMounts: volumeMounts
                                     .filter(v => v.name.trim() !== "")
                                     .map(v => ({
@@ -435,22 +480,30 @@ export default function CreateDeploymentDialog({
                         {imageSource === "registry" && (
                             <div className="space-y-4 p-4 border rounded-md bg-slate-50">
                                 <Label>Local Repository</Label>
-                                <Select value={selectedRepo} onValueChange={handleLocalRepoChange}>
+                                <Select
+                                    value={selectedRepo}
+                                    onValueChange={(value) => {
+                                        if (value === "__upload__") {
+                                            setShowUploadDialog(true);
+                                            return;
+                                        }
+                                        setSelectedRepo(value);
+                                        setSelectedTag("");
+                                        setTags([]);
+                                        fetchLocalTags(value).then(setTags); // load tags đúng repo
+                                    }}
+                                >
                                     <SelectTrigger>
                                         <SelectValue placeholder="Select Repo" />
                                     </SelectTrigger>
-
                                     <SelectContent>
-                                        {imageRepos.map((r) => (
-                                            <SelectItem
-                                                key={r}
-                                                value={`192.168.235.150:5000/${r}`}
-                                            >
-                                                {r}
+                                        {imageRepos.map((repo) => (
+                                            <SelectItem key={repo} value={repo}>
+                                                {repo}
                                             </SelectItem>
                                         ))}
 
-                                        {/* ⭐ Option đặc biệt */}
+                                        {/* Option đặc biệt */}
                                         <SelectItem
                                             value="__upload__"
                                             className="text-blue-600 font-semibold"
@@ -461,11 +514,24 @@ export default function CreateDeploymentDialog({
                                 </Select>
 
                                 <Label>Tag</Label>
-                                <Select value={selectedTag} onValueChange={handleTagChange}>
-                                    <SelectTrigger><SelectValue placeholder="Select Tag" /></SelectTrigger>
+                                <Select
+                                    value={selectedTag}
+                                    onValueChange={(tag) => {
+                                        setSelectedTag(tag);
+
+                                        // Build image with registry prefix
+                                        updateContainer("image", `192.168.235.150:5000/${selectedRepo}:${tag}`);
+                                        updateContainer("imagePullPolicy", "Always");
+                                    }}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select Tag" />
+                                    </SelectTrigger>
                                     <SelectContent>
                                         {tags.map((t) => (
-                                            <SelectItem key={t} value={t}>{t}</SelectItem>
+                                            <SelectItem key={t} value={t}>
+                                                {t}
+                                            </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
@@ -577,6 +643,62 @@ export default function CreateDeploymentDialog({
                                         variant="destructive"
                                         size="sm"
                                         onClick={() => setEnvVars(envVars.filter((_, i) => i !== idx))}
+                                    >
+                                        X
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
+                        {/* EnvFrom */}
+                        <div className="mt-4">
+                            <div className="flex justify-between items-center">
+                                <Label>EnvFrom (ConfigMap)</Label>
+
+                                <Button
+                                    variant="outline"
+                                    type="button"
+                                    onClick={() =>
+                                        updateContainer("envFrom", [
+                                            ...form.container.envFrom,
+                                            { id: Date.now(), name: "", type: "configMap" }
+                                        ])
+                                    }
+                                >
+                                    + Add EnvFrom
+                                </Button>
+                            </div>
+                            {form.container.envFrom.map(item => (
+                                <div key={item.id} className="flex gap-2 mt-2">
+
+                                    <Select
+                                        value={item.name}
+                                        onValueChange={(v) =>
+                                            updateContainer("envFrom",
+                                                form.container.envFrom.map(e =>
+                                                    e.id === item.id ? { ...e, name: v } : e
+                                                )
+                                            )
+                                        }
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select ConfigMap" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {envFromList.map(cm => (
+                                                <SelectItem key={cm.name} value={cm.name}>
+                                                    {cm.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+
+                                    <Button
+                                        variant="destructive"
+                                        onClick={() =>
+                                            updateContainer("envFrom",
+                                                form.container.envFrom.filter(e => e.id !== item.id)
+                                            )
+                                        }
                                     >
                                         X
                                     </Button>

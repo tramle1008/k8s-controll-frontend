@@ -191,7 +191,7 @@ const PodsPage = () => {
         {
             field: 'ready',
             headerName: 'Ready',
-            width: 90,
+            width: 85,
             renderCell: (params) => (
                 <Chip
                     label={params.value || 'deleted'}
@@ -204,7 +204,7 @@ const PodsPage = () => {
         {
             field: 'status',
             headerName: 'Trạng thái',
-            width: 130,
+            minwidth: 50,
             renderCell: (params) => {
                 let color = 'default';
                 if (params.value === 'Running') color = 'success';
@@ -214,8 +214,21 @@ const PodsPage = () => {
                 return <Chip label={params.value} color={color} size="small" />;
             },
         },
-        { field: 'restarts', headerName: 'Restarts', width: 100, type: 'number' },
-        { field: 'age', headerName: 'Tuổi', width: 90 },
+        { field: 'restarts', headerName: 'Restarts', width: 50, type: 'number' },
+        {
+            field: "labels",
+            headerName: "Labels",
+            flex: 1,
+            minwidth: 180,
+            renderCell: (params) => {
+                const sel = params.value;
+                if (!sel) return "—";
+
+                return Object.entries(sel)
+                    .map(([k, v]) => `${k}=${v}`)
+                    .join(", ");
+            }
+        },
         { field: 'nodeName', headerName: 'Node', width: 150 },
         {
             field: 'creationTimestamp',
@@ -270,8 +283,8 @@ const PodsPage = () => {
                         namespace={namespace}
                         onNamespaceChange={setNamespace}
                         onRefresh={() => dispatch(fetchPods())}
-                        onCreate={() => console.log('create pod')} // thay bằng navigate nếu cần
-                        onImport={() => console.log('import yaml')}
+                    // onCreate={() => console.log('create pod')} // thay bằng navigate nếu cần
+                    // onImport={() => console.log('import yaml')}
                     />
                 }
             >

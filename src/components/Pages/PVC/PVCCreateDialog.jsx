@@ -100,13 +100,13 @@ const PVCCreateDialog = ({ open, onOpenChange, onCreated }) => {
             await dispatch(createPVC(payload)).unwrap();
             await dispatch(fetchPVCs());
 
-            enqueueSnackbar("Tạo PVC thành công", { variant: "success" });
+            enqueueSnackbar("Tạo PVC thành công", { variant: "success", autoHideDuration: 1000 });
 
             onCreated?.();
             resetForm();
             onOpenChange(false);
         } catch (err) {
-            enqueueSnackbar(`Tạo PVC thất bại: ${err}`, { variant: "error" });
+            enqueueSnackbar(`Tạo PVC thất bại: ${err}`, { variant: "error", autoHideDuration: 1000 });
         } finally {
             setProcessing(false);
         }

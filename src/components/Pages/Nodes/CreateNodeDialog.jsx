@@ -130,12 +130,15 @@ export default function CreateNodeDialog({ open, onOpenChange }) {
 
             setProcessing(false);
             onOpenChange(false);
+            window.location.reload();
 
         } catch (err) {
 
             console.error(err);
             setProcessing(false);
 
+        } finally {
+            setProcessing(false); // luôn chạy
         }
     };
 
@@ -239,14 +242,16 @@ export default function CreateNodeDialog({ open, onOpenChange }) {
                         )}
 
                         {/* CREATE NODE */}
-                        {sshStatus === "success" && (
-                            <Button
-                                type="submit"
-                                className="border-blue-400 text-blue-600 hover:bg-blue-50"
-                            >
-                                Thêm Node
-                            </Button>
-                        )}
+                        <Button
+                            type="submit"
+                            className="border-blue-400 text-blue-600 hover:bg-blue-50 flex items-center gap-2"
+                            disabled={processing}
+                        >
+                            {processing && (
+                                <span className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></span>
+                            )}
+                            {processing ? "Đang tạo..." : "Thêm Node"}
+                        </Button>
 
                     </div>
 

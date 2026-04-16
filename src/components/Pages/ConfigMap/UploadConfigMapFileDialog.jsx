@@ -31,22 +31,65 @@ export default function UploadConfigMapFileDialog({
     onUploaded
 }) {
     const { enqueueSnackbar } = useSnackbar();
+
     const [namespace, setNamespace] = useState("");
     const [file, setFile] = useState(null);
+    const [type, setType] = useState("env");
 
     const dispatch = useDispatch();
     const { list } = useSelector((state) => state.namespaceProduct);
 
-    // Load namespace list khi mở dialog
     useEffect(() => {
         if (open) dispatch(fetchProjectNamespaces());
     }, [open, dispatch]);
 
+    // =========================
+    // VALIDATE FILE EXTENSION
+    // =========================
+    const validateFile = (file) => {
+        if (!file) return false;
+
+        const name = file.name.toLowerCase();
+
+        if (type === "env") {
+            return name.endsWith(".env");
+        }
+
+        if (type === "yaml") {
+            return name.endsWith(".yml") || name.endsWith(".yaml");
+        }
+
+        if (type === "sql") {
+            return name.endsWith(".sql");
+        }
+        return false;
+    };
+
+    const handleFileChange = (e) => {
+        const selected = e.target.files[0];
+
+        if (!selected) return;
+
+        if (!validateFile(selected)) {
+            enqueueSnackbar("Invalid file type for selected config type", {
+                variant: "error"
+            });
+            return;
+        }
+
+        setFile(selected);
+    };
+
     const handleUpload = async () => {
+        let backendType = type;
+
+        if (type === "sql") backendType = "file";
+
         if (!file) {
             enqueueSnackbar("Please select a file", { variant: "error" });
             return;
         }
+
         if (!namespace) {
             enqueueSnackbar("Please select a namespace", { variant: "error" });
             return;
@@ -54,16 +97,18 @@ export default function UploadConfigMapFileDialog({
 
         const formData = new FormData();
         formData.append("namespace", namespace);
+        formData.append("type", backendType); // 
         formData.append("file", file);
 
         try {
             await coreApi.post("/configmaps/file", formData);
-            enqueueSnackbar("Uploaded", { variant: "success", autoHideDuration: 1000 });
+
+            enqueueSnackbar("Upload thành công", { variant: "success", autoHideDuration: 1000 });
 
             onUploaded?.();
             onOpenChange(false);
         } catch {
-            enqueueSnackbar("Upload failed", { variant: "error" });
+            enqueueSnackbar("Upload thất bại", { variant: "error", autoHideDuration: 1000 });
         }
     };
 
@@ -77,16 +122,13 @@ export default function UploadConfigMapFileDialog({
 
                 <div className="space-y-4">
 
-                    {/* Namespace chọn từ Select */}
+                    {/* Namespace */}
                     <div>
                         <Label>Namespace</Label>
 
-                        <Select
-                            value={namespace}
-                            onValueChange={(v) => setNamespace(v)}
-                        >
+                        <Select value={namespace} onValueChange={setNamespace}>
                             <SelectTrigger className="w-full h-9 mt-1">
-                                <SelectValue placeholder="Chọn namespace" />
+                                <SelectValue placeholder="Select namespace" />
                             </SelectTrigger>
 
                             <SelectContent>
@@ -99,13 +141,40 @@ export default function UploadConfigMapFileDialog({
                         </Select>
                     </div>
 
-                    {/* File upload */}
+                    {/* Type */}
+                    <div>
+                        <Label>ConfigMap Type</Label>
+
+                        <Select value={type} onValueChange={(v) => {
+                            setType(v);
+                            setFile(null); // reset file khi đổi type
+                        }}>
+                            <SelectTrigger className="w-full h-9 mt-1">
+                                <SelectValue />
+                            </SelectTrigger>
+
+                            <SelectContent>
+                                <SelectItem value="env">ENV (.env)</SelectItem>
+                                <SelectItem value="yaml">YAML (.yml/.yaml)</SelectItem>
+                                <SelectItem value="sql">SQL (.sql)</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {/* File */}
                     <div>
                         <Label>ConfigMap File</Label>
+
                         <Input
                             type="file"
-                            accept=".yaml,.yml,.sql"
-                            onChange={(e) => setFile(e.target.files[0])}
+                            accept={
+                                type === "env"
+                                    ? ".env"
+                                    : type === "yaml"
+                                        ? ".yml,.yaml"
+                                        : ".sql"
+                            }
+                            onChange={handleFileChange}
                         />
                     </div>
                 </div>

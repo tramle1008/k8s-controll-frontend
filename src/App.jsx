@@ -24,6 +24,8 @@ import UserPage from './components/Pages/User/UserPage';
 import InfoUser from './components/Pages/User/InfoUser';
 import DeploymentInfo from './components/Pages/User/DeploymentInfo';
 import RegistryReposPage from './components/Pages/Manager/RegistryReposPage';
+import MetalLBPage from './components/Pages/Manager/MetalLBPage';
+import AddonsPage from './components/Pages/Manager/AddonsPage';
 
 
 
@@ -139,7 +141,7 @@ function AppContent() {
         <Route
           path="/networking/ingress"
           element={
-            <ProtectedRoute allowedRoles={["ADMIN"]}>
+            <ProtectedRoute allowedRoles={["ADMIN", "USER"]}>
               <IngressPage />
             </ProtectedRoute>
           }
@@ -148,7 +150,7 @@ function AppContent() {
         <Route
           path="/storage/pv"
           element={
-            <ProtectedRoute allowedRoles={["ADMIN"]}>
+            <ProtectedRoute allowedRoles={["ADMIN", "USER"]}>
               <PVPage />
             </ProtectedRoute>
           }
@@ -173,7 +175,7 @@ function AppContent() {
         <Route
           path="/storage/pvc"
           element={
-            <ProtectedRoute allowedRoles={["ADMIN"]}>
+            <ProtectedRoute allowedRoles={["ADMIN", "USER"]}>
               <PVCPage />
             </ProtectedRoute>
           }
@@ -210,6 +212,24 @@ function AppContent() {
           element={
             <ProtectedRoute allowedRoles={["ADMIN"]}>
               <UsersPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/cluster/lb"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <MetalLBPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/cluster/addons"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <AddonsPage />
             </ProtectedRoute>
           }
         />

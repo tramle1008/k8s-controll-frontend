@@ -47,39 +47,21 @@ const IngressPage = () => {
         const matchNamespace = namespace === "all" || ing.namespace === namespace;
         return matchSearch && matchNamespace;
     });
-
     const handleDeleteIngress = async (namespace, name) => {
         try {
             const res = await fetch(`${BACKEND_URL}/api/ingress/${namespace}/${name}`, {
                 method: "DELETE"
             });
+
             if (!res.ok) throw new Error(await res.text());
+
             enqueueSnackbar(`Đã xóa Ingress ${name}`, { variant: "success", autoHideDuration: 1000 });
-            fetchIngresses(); // reload lại danh sách
+
+            fetchIngresses();
         } catch (err) {
-            enqueueSnackbar(`Xóa Ingress thất bại: ${err.message}`, { variant: "error" });
+            enqueueSnackbar(`Xóa Ingress thất bại: ${err.message}`, { variant: "error", autoHideDuration: 1000 });
         }
     };
-
-    const handleGetYaml = async (namespace, name) => {
-        try {
-            const res = await fetch(`${BACKEND_URL}/api/ingress/${namespace}/${name}/raw`);
-            if (!res.ok) throw new Error(await res.text());
-            const blob = await res.blob();
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = `${name}.yaml`;
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            window.URL.revokeObjectURL(url);
-            enqueueSnackbar("Tải YAML thành công", { variant: "success" });
-        } catch (err) {
-            enqueueSnackbar(`Tải YAML thất bại: ${err.message}`, { variant: "error" });
-        }
-    };
-
     const columns = [
         { field: "namespace", headerName: "Namespace", flex: 1, minWidth: 150 },
         { field: "name", headerName: "Tên Ingress", flex: 1.5, minWidth: 180 },
@@ -91,18 +73,11 @@ const IngressPage = () => {
             renderCell: (params) => params.row.hosts?.join(", ") || "-"
         },
         {
-            field: "addresses",
+            field: "loadBalancerIp",
             headerName: "Addresses",
             flex: 2,
             minWidth: 200,
-            renderCell: (params) => params.row.addresses?.join(", ") || "-"
-        },
-        {
-            field: "age",
-            headerName: "Tuổi",
-            flex: 1,
-            minWidth: 120,
-            renderCell: (params) => params.row.age || "-"
+            renderCell: (params) => params.row.loadBalancerIp || "-"
         },
         {
             field: "actions",
@@ -128,15 +103,6 @@ const IngressPage = () => {
                         </IconButton>
                     </Tooltip>
 
-                    <Tooltip title="Tải YAML">
-                        <IconButton
-                            color="success"
-                            size="small"
-                            onClick={() => handleGetYaml(params.row.namespace, params.row.name)}
-                        >
-                            <DownloadIcon size={18} />
-                        </IconButton>
-                    </Tooltip>
                 </Stack>
             )
         }
